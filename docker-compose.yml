@@ -1,0 +1,87 @@
+version: '3.5'
+services:
+  mysql:
+    image: 'mysql:8'
+    ports:
+      - '3306:3306'
+    networks:
+      20x:
+        aliases:
+          - mysql.lo
+    volumes:
+      - '/app-data/volumes/mysql:/var/lib/mysql'
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+  gitlab:
+    image: 'gitlab/gitlab-ce:latest'
+    ports:
+      - '3080:80'
+      - '3443:443'
+      - '3022:22'
+    networks:
+      20x:
+        aliases:
+          - gitlab.lo
+    volumes:
+      - '/app-data/volumes/gitlab/configs:/etc/gitlab'
+      - '/app-data/volumes/gitlab/logs:/var/log/gitlab'
+      - '/app-data/volumes/gitlab/data:/var/opt/gitlab'
+
+  registry:
+    container_name: registry
+    image: 'registry:2'
+    ports:
+      - '5000:5000'
+    networks:
+      20x:
+        aliases:
+          - registry.lo
+    volumes:
+      - '/app-data/volumes/registry/images:/var/lib/registry'
+      - '/app-data/volumes/registry/certs:/certs'
+
+  gitlab-runner-1:
+    image: 'gitlab/gitlab-runner:latest'
+    networks:
+      20x:
+        aliases:
+          - gitlab-runner-1.lo
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock'
+      - '/app-data/volumes/gitlab-runner-1/config:/etc/gitlab-runner'
+
+  prometheus:
+    image: 'prom/prometheus:v2.11.2'
+    ports:
+      - '9090:9090'
+    networks:
+      20x:
+        aliases:
+          - prometheus.lo
+    volumes:
+      - '/app-data/volumes/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml'
+      - '/app-data/volumes/prometheus/data:/prometheus'
+
+  grafana:
+    image: 'grafana/grafana'
+    ports:
+      - '3000:3000'
+    networks:
+      20x:
+        aliases:
+          - grafana.lo
+    volumes:
+      - '/app-data/volumes/grafana/grafana_db:/var/lib/grafana'
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+
+networks:
+  20x:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+     
+    
