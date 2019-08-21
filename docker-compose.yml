@@ -102,16 +102,39 @@ services:
   traefik:
     container_name: traefik
     command: --loglevel=DEBUG
-    image: traefik:v1.7
+    image: traefik
     restart: always
     ports:
       - "4000:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - $PWD/traefik.toml:/traefik.toml
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=traefik"
+      - "traefik.docker.network=local"
+      - "traefik.frontend.rule=Host:traefik.lo"
+      - "traefik.port=8080"
     networks:
       local:
         ipv4_address: 172.30.0.2
+
+  nginx:
+    container_name: nginx
+    image: nginx
+    ports: 
+      - 8888:80
+    networks:
+      local:
+        aliases:
+          - nginx.lo
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=nginx"
+      - "traefik.docker.network=local"
+      - "traefik.frontend.rule=Host:nginx.lo"
+      - "traefik.port=80"
+
 
 networks:
   local:
