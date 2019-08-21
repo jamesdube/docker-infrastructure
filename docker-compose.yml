@@ -1,32 +1,40 @@
 version: '3.5'
 services:
   mysql:
+    container_name: mysql
     image: 'mysql:8'
     ports:
       - '3306:3306'
     networks:
-      20x:
+      local:
         aliases:
           - mysql.lo
     volumes:
-      - '/app-data/volumes/mysql:/var/lib/mysql'
+      - '${MYSQL_DATA}:/var/lib/mysql'
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
 
   gitlab:
-    image: 'gitlab/gitlab-ce:latest'
+    container_name: gitlab
+    image: 'gitlab/gitlab-ce:12.1.6-ce.0'
     ports:
       - '3080:80'
       - '3443:443'
       - '3022:22'
     networks:
-      20x:
+      local:
         aliases:
           - gitlab.lo
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=gitlab"
+      - "traefik.docker.network=local"
+      - "traefik.frontend.rule=Host:gitlab.lo"
+      - "traefik.port=80"
     volumes:
-      - '/app-data/volumes/gitlab/configs:/etc/gitlab'
-      - '/app-data/volumes/gitlab/logs:/var/log/gitlab'
-      - '/app-data/volumes/gitlab/data:/var/opt/gitlab'
+      - '${GITLAB_DATA}/configs:/etc/gitlab'
+      - '${GITLAB_DATA}/logs:/var/log/gitlab'
+      - '${GITLAB_DATA}/data:/var/opt/gitlab'
 
   registry:
     container_name: registry
@@ -34,54 +42,79 @@ services:
     ports:
       - '5000:5000'
     networks:
-      20x:
+      local:
         aliases:
           - registry.lo
     volumes:
-      - '/app-data/volumes/registry/images:/var/lib/registry'
-      - '/app-data/volumes/registry/certs:/certs'
+      - '${REGISTRY_DATA}/images:/var/lib/registry'
+      - '${REGISTRY_DATA}/certs:/certs'
 
   gitlab-runner-1:
-    image: 'gitlab/gitlab-runner:latest'
+    container_name: gitlab-runner-1
+    image: 'gitlab/gitlab-runner:v12.1.0'
     networks:
-      20x:
+      local:
         aliases:
           - gitlab-runner-1.lo
     volumes:
       - '/var/run/docker.sock:/var/run/docker.sock'
-      - '/app-data/volumes/gitlab-runner-1/config:/etc/gitlab-runner'
+      - '${PWD}/gitlab-runner-config.toml:/etc/gitlab-runner/config.toml'
 
   prometheus:
+    container_name: prometheus
     image: 'prom/prometheus:v2.11.2'
     ports:
       - '9090:9090'
     networks:
-      20x:
+      local:
         aliases:
           - prometheus.lo
     volumes:
-      - '/app-data/volumes/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml'
-      - '/app-data/volumes/prometheus/data:/prometheus'
+      - '${PWD}/prometheus.yml:/etc/prometheus/prometheus.yml'
+      - '${PROMETHEUS_DATA}:/prometheus'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=prometheus"
+      - "traefik.docker.network=local"
+      - "traefik.frontend.rule=Host:prometheus.lo"
+      - "traefik.port=9090"
 
   grafana:
-    image: 'grafana/grafana'
+    container_name: grafana
+    image: 'grafana/grafana:6.3.0'
     ports:
       - '3000:3000'
     networks:
-      20x:
+      local:
         aliases:
           - grafana.lo
     volumes:
-      - '/app-data/volumes/grafana/grafana_db:/var/lib/grafana'
+      - '${GRAFANA_DATA}:/var/lib/grafana'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=grafana"
+      - "traefik.docker.network=local"
+      - "traefik.frontend.rule=Host:grafana.lo"
+      - "traefik.port=3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
 
+  traefik:
+    container_name: traefik
+    command: --loglevel=DEBUG
+    image: traefik:v1.7
+    restart: always
+    ports:
+      - "4000:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - $PWD/traefik.toml:/traefik.toml
+    networks:
+      local:
+        ipv4_address: 172.30.0.2
+
 networks:
-  20x:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.20.0.0/16
+  local:
+    external: true
      
     
