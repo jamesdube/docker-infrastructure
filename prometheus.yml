@@ -28,10 +28,41 @@ scrape_configs:
     static_configs:
     - targets: ['localhost:9090']
     
-  - job_name: 'prometheus-9'
-
-    # metrics_path defaults to '/metrics'
-    # scheme defaults to 'http'.
-
+  - job_name: 'scape-core'
+    scrape_interval: 2s
+    metrics_path: '/actuator/prometheus'
     static_configs:
-    - targets: ['localhost:9090']
+    - targets: ['10.0.0.1:4000']
+
+  - job_name: 'epay-ecocash-endpoint'
+    scrape_interval: 2s
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+    - targets: ['192.168.51.213:8080']
+    - targets: ['192.168.51.214:8080']
+
+  - job_name: 'epay-core'
+    scrape_interval: 2s
+    metrics_path: '/epay/actuator/prometheus'
+    static_configs:
+    - targets: ['192.168.51.215:8003']
+    - targets: ['192.168.51.216:8003']
+    - targets: ['192.168.51.217:8003']
+
+  - job_name: 'epay-recharge-provider'
+    scrape_interval: 2s
+    metrics_path: '/recharge-provider/actuator/prometheus'
+    static_configs:
+    - targets: ['10.0.0.1:9001']
+
+  - job_name: 'epay-load-test'
+    scrape_interval: 2s
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+    - targets: ['10.0.0.1:9009']
+
+  - job_name: 'haexp-104-58'
+    scrape_interval: 2s
+    metrics_path: '/metrics'
+    static_configs:
+    - targets: ['10.0.0.1:9101']

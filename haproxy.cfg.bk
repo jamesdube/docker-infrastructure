@@ -1,0 +1,61 @@
+global
+  #debug                                   # uncomment to enable debug mode for HAProxy
+
+defaults
+  mode http                                # enable http mode which gives of layer 7 filtering
+  timeout connect 5000ms                   # max time to wait for a connection attempt to a server to succeed
+  timeout client 50000ms                   # max inactivity time on the client side
+  timeout server 50000ms                   # max inactivity time on the server side
+
+frontend app                               # define what port to listed to for HAProxy
+  bind *:80
+
+  acl test_host hdr(host) -i gitlab.lo
+  acl stats_host hdr(host) -i haproxy.lo
+  acl api_bulksms_host hdr(host) -i api.bulksms.lo
+
+  use_backend gitlab if test_host
+  use_backend stats_backend if stats_host
+  use_backend bulksmsApi_backend if api_bulksms_host
+
+
+frontend ssh                               
+  bind *:22
+
+  acl test_host hdr(host) -i gitlab.lo
+
+  use_backend gitlab_ssh if test_host
+
+
+backend bulksmsApi_backend                            
+  server bulksmsApi 10.0.0.1:8080
+
+backend gitlab                            
+  server gitlab 10.0.0.1:3080
+
+backend gitlab_ssh                            
+  server gitlab 10.0.0.1:3022           
+
+frontend app-secure                            
+  bind *:443
+  mode tcp
+  acl backend1 ssl_fc_sni gitlab.lo
+  acl backend2 ssl_fc_sni upsource.lo
+  use_backend gitlab_ssl if backend1
+  use_backend upsource_backend if backend2
+  use_backend upsource_backend if { req_ssl_sni -i upsource.lo }
+  use_backend gitlab_ssl if { req_ssl_sni -i gitlab.lo }
+
+backend gitlab_ssl    
+  mode tcp    
+  option ssl-hello-chk                     
+  server gitlab_server_ssl 10.0.0.1:3443   
+
+backend upsource_backend    
+  mode tcp    
+  option ssl-hello-chk                     
+  server gitlab_server_ssl 10.0.0.1:9060
+
+backend stats_backend
+  stats enable 
+  stats uri /        
