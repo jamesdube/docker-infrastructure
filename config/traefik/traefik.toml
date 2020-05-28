@@ -46,7 +46,6 @@ dashboard = true
 entryPoint = "traefik"
 
 [docker]
-domain = "local"
 endpoint = "unix:///var/run/docker.sock"
 exposedByDefault = false
 watch = true

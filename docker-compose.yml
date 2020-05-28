@@ -2,7 +2,7 @@ version: '3.5'
 services:
   mysql:
     container_name: mysql
-    image: 'mysql:8'
+    image: 'mysql:5.6'
     ports:
       - '3306:3306'
     networks:
@@ -40,14 +40,13 @@ services:
     container_name: registry
     image: 'registry:2'
     ports:
-      - '5000:5000'
-    networks:
-      local:
-        aliases:
-          - registry.lo
+      - '5000:443'
+    environment:
+      REGISTRY_HTTP_ADDR: 0.0.0.0:443
+      REGISTRY_HTTP_TLS_CERTIFICATE: /certs/registry.co.pem
+      REGISTRY_HTTP_TLS_KEY: /certs/registry.co-key.pem
     volumes:
-      - '${REGISTRY_DATA}/images:/var/lib/registry'
-      - '${REGISTRY_DATA}/certs:/certs'
+      - $PWD/config/registry:/certs
 
   gitlab-runner-1:
     container_name: gitlab-runner-1
@@ -71,7 +70,7 @@ services:
           - prometheus.lo
     volumes:
       - '${PWD}/prometheus.yml:/etc/prometheus/prometheus.yml'
-      - '${PROMETHEUS_DATA}:/prometheus'
+        # - '${PROMETHEUS_DATA}:/prometheus'
     labels:
       - "traefik.enable=true"
       - "traefik.backend=prometheus"
@@ -88,8 +87,6 @@ services:
       local:
         aliases:
           - grafana.lo
-    volumes:
-      - '${GRAFANA_DATA}:/var/lib/grafana'
     labels:
       - "traefik.enable=true"
       - "traefik.backend=grafana"
@@ -102,16 +99,182 @@ services:
   traefik:
     container_name: traefik
     command: --loglevel=DEBUG
-    image: traefik:v1.7
+    image: traefik
     restart: always
     ports:
-      - "4000:8080"
+      - "4080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - $PWD/traefik.toml:/traefik.toml
+      - $PWD/traefik.yml:/traefik.yml
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=traefik"
+      - "traefik.docker.network=local"
+      - "traefik.frontend.rule=Host:traefik.lo"
+      - "traefik.port=8080"
     networks:
       local:
         ipv4_address: 172.30.0.2
+
+  nginx:
+    build: 
+      context: ./config/nginx/
+    container_name: nginx
+    image: jdube/nginx
+    ports: 
+      - 8123:80
+      - 8223:443
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=nginx"
+      - "traefik.docker.network=local"
+      - "traefik.frontend.rule=Host:nginx.lo"
+      - "traefik.port=80"
+      - "co.elastic.metrics/module=nginx"
+      - "co.elastic.metrics/metricsets=stubstatus"
+      - "co.elastic.metrics/hosts=80"
+      - "co.elastic.metrics/period=10s"
+
+  nginx-secure:
+    container_name: nginx-secure.co
+    image: nginx
+    ports: 
+      - 7000:80
+      - 7001:443
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # - $PWD/config/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - $PWD/config/nginx/nginx-secure.co.crt:/etc/nginx/conf.d/nginx-secure.co.crt
+      - $PWD/config/nginx/nginx-secure.co.key:/etc/nginx/conf.d/nginx-secure.co.key
+
+  zipkin:
+    container_name: zipkin
+    image: 'openzipkin/zipkin:2.16.1'
+    ports: 
+      - 9411:9411
+    networks:
+      local:
+        aliases:
+          - zipkin.lo
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=zipkin"
+      - "traefik.docker.network=local"
+      - "traefik.frontend.rule=Host:zipkin.lo"
+      - "traefik.port=9411"
+
+  elasticsearch:
+    container_name: elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.3.0
+    networks:
+      local:
+        aliases:
+          - elasticsearch.lo
+    ports:
+      - '9200:9200'
+      - '9300:9300'
+    environment:
+      discovery.type: single-node
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=elasticsearch"
+      - "traefik.docker.network=local"
+      - "traefik.frontend.rule=Host:elasticsearch.lo"
+      - "traefik.port=9411"
+
+  kibana:
+    container_name: kibana
+    image: docker.elastic.co/kibana/kibana:7.3.0
+    ports:
+      - '5601:5601'
+    networks:
+      local:
+        aliases:
+          - kibana.lo
+    volumes:
+      - ${PWD}/kibana.yml:/usr/share/kibana/config/kibana.yml
+    environment:
+      SERVER_NAME: kibana.lo
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=kibana"
+      - "traefik.docker.network=local"
+      - "traefik.frontend.rule=Host:kibana.lo"
+      - "traefik.port=5601"
+
+  metricbeat:
+    container_name: metricbeat
+    image: docker.elastic.co/beats/metricbeat:7.3.0
+    environment:
+      setup.kibana.host: kibana:5601
+      # output.elasticsearch.hosts: ["elasticsearch:9200"]
+    user: root
+    networks:
+      local:
+        aliases:
+          - metricbeat.lo
+    volumes:
+      - ${PWD}/metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      - /proc:/hostfs/proc:ro
+      - /:/hostfs:ro 
+
+  filebeat:
+    container_name: filebeat
+    image: docker.elastic.co/beats/filebeat:7.3.0
+    user: root
+    command: -e -d "*"
+    networks:
+      local:
+        aliases:
+          - filebeat.lo
+    volumes:
+      - ${PWD}/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /home/jdube/app-data/apps/logs/epay/:/data/apps/logs/epay/
+
+  apm-server:
+    container_name: apm-server
+    image: docker.elastic.co/apm/apm-server:7.3.1
+    command: --strict.perms=false -e 
+    ports:
+      - 8200:8200
+    environment:
+      output.elasticsearch.hosts: "http://elasticsearch:9200"
+    user: apm-server
+    networks:
+      local:
+        aliases:
+          - apm-server.lo
+    volumes:
+      - "${PWD}/apm-server.yml:/usr/share/apm-server/apm-server.yml:ro"
+
+ 
+  logstash:
+    container_name: logstash
+    image: docker.elastic.co/logstash/logstash:7.3.1
+    networks:
+      local:
+        aliases:
+          - logstash.lo
+    ports:
+      - 5044:5044
+      - 5045:5045
+    volumes:
+      - ${PWD}/logstash-pipeline/:/usr/share/logstash/pipeline/
+
+  haproxy:
+    container_name: haproxy
+    image: haproxy:2.0
+    ports:
+      - 9080:80
+      - 9081:443
+    networks:
+      local:
+        ipv4_address: 172.30.0.200
+    volumes:
+      - ${PWD}/config/haproxy/haproxy.cfg/:/usr/local/etc/haproxy/haproxy.cfg
 
 networks:
   local:
