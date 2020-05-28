@@ -46,7 +46,7 @@ services:
       REGISTRY_HTTP_TLS_CERTIFICATE: /certs/registry.co.pem
       REGISTRY_HTTP_TLS_KEY: /certs/registry.co-key.pem
     volumes:
-      - $PWD/config/registry:/certs
+      - $PWD/certs:/certs
 
   gitlab-runner-1:
     container_name: gitlab-runner-1
