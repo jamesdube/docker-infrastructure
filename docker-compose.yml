@@ -40,14 +40,13 @@ services:
     container_name: registry
     image: 'registry:2'
     ports:
-      - '5000:5000'
-    networks:
-      local:
-        aliases:
-          - registry.lo
+      - '5000:443'
+    environment:
+      REGISTRY_HTTP_ADDR: 0.0.0.0:443
+      REGISTRY_HTTP_TLS_CERTIFICATE: /certs/registry.co.pem
+      REGISTRY_HTTP_TLS_KEY: /certs/registry.co-key.pem
     volumes:
-      - '${REGISTRY_DATA}/images:/var/lib/registry'
-      - '${REGISTRY_DATA}/certs:/certs'
+      - $PWD/config/registry:/certs
 
   gitlab-runner-1:
     container_name: gitlab-runner-1
@@ -118,14 +117,13 @@ services:
         ipv4_address: 172.30.0.2
 
   nginx:
+    build: 
+      context: ./config/nginx/
     container_name: nginx
-    image: nginx
+    image: jdube/nginx
     ports: 
-      - 8888:80
-    networks:
-      local:
-        aliases:
-          - nginx.lo
+      - 8123:80
+      - 8223:443
     labels:
       - "traefik.enable=true"
       - "traefik.backend=nginx"
@@ -271,13 +269,12 @@ services:
     image: haproxy:2.0
     ports:
       - 9080:80
+      - 9081:443
     networks:
       local:
-        aliases:
-          - haproxy.lo
         ipv4_address: 172.30.0.200
     volumes:
-      - ${PWD}/haproxy.cfg/:/usr/local/etc/haproxy/haproxy.cfg
+      - ${PWD}/config/haproxy/haproxy.cfg/:/usr/local/etc/haproxy/haproxy.cfg
 
 networks:
   local:
