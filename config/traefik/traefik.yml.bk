@@ -1,0 +1,26 @@
+api:
+  dashboard: true
+  insecure: true
+
+entryPoints:
+  web:
+    address: ":80"
+
+  web-secure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+
+metrics:
+  prometheus: {}
+
+tracing:
+  zipkin: {}
+
+ping: {}
+
+log:
+  level: DEBUG
