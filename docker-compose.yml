@@ -288,6 +288,13 @@ services:
     ports:
       - 8777:8080
 
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3.8.3-management
+    ports:
+      - 5672:5672
+      - 15672:15672
+
   ecs:
     container_name: ecs
     image: econet-wireless-zimbabwe/epay-config-server:0.1.0
