@@ -1,16 +1,10 @@
 version: '3.5'
 services:
-  mysql:
+  mysql56:
     container_name: mysql
     image: 'mysql:5.6'
     ports:
       - '3306:3306'
-    networks:
-      local:
-        aliases:
-          - mysql.lo
-    volumes:
-      - '${MYSQL_DATA}:/var/lib/mysql'
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
 
@@ -99,18 +93,19 @@ services:
   traefik:
     container_name: traefik
     command: --loglevel=DEBUG
-    image: traefik
+    image: traefik:2.2.1
     restart: always
     ports:
-      - "4080:8080"
+      - 4001:80
+      - 4000:8080
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - $PWD/traefik.yml:/traefik.yml
+      - ${PWD}/config/traefik/traefik.yml:/traefik.yml
     labels:
       - "traefik.enable=true"
       - "traefik.backend=traefik"
       - "traefik.docker.network=local"
-      - "traefik.frontend.rule=Host:traefik.lo"
+      - "traefik.frontend.rule=Host:traefik.do"
       - "traefik.port=8080"
     networks:
       local:
@@ -125,11 +120,13 @@ services:
       - 8123:80
       - 8223:443
     labels:
-      - "traefik.enable=true"
-      - "traefik.backend=nginx"
-      - "traefik.docker.network=local"
-      - "traefik.frontend.rule=Host:nginx.lo"
-      - "traefik.port=80"
+      # - "traefik.enable=true"
+      # - "traefik.backend=nginx"
+      # - "traefik.docker.network=local"
+      # - "traefik.frontend.rule=Host:nginx.co"
+      # - "traefik.port=80"
+      - "traefik.http.routers.nginx.rule=Host(`nginx.co`)"
+      - "traefik.http.services.nginx.loadbalancer.server.port=80"
       - "co.elastic.metrics/module=nginx"
       - "co.elastic.metrics/metricsets=stubstatus"
       - "co.elastic.metrics/hosts=80"
@@ -192,15 +189,15 @@ services:
         aliases:
           - kibana.lo
     volumes:
-      - ${PWD}/kibana.yml:/usr/share/kibana/config/kibana.yml
+      - ${PWD}/config/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
     environment:
       SERVER_NAME: kibana.lo
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
     labels:
       - "traefik.enable=true"
       - "traefik.backend=kibana"
-      - "traefik.docker.network=local"
-      - "traefik.frontend.rule=Host:kibana.lo"
+      # - "traefik.docker.network=local"
+      - "traefik.frontend.rule=Host:kibana.co"
       - "traefik.port=5601"
 
   metricbeat:
@@ -224,15 +221,15 @@ services:
   filebeat:
     container_name: filebeat
     image: docker.elastic.co/beats/filebeat:7.3.0
-    user: root
+    # user: root
     command: -e -d "*"
     networks:
       local:
         aliases:
           - filebeat.lo
     volumes:
-      - ${PWD}/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
-      - /home/jdube/app-data/apps/logs/epay/:/data/apps/logs/epay/
+      - ${PWD}/config/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /tmp/apps/logs/epay/:/data/apps/logs/epay/
 
   apm-server:
     container_name: apm-server
@@ -248,7 +245,7 @@ services:
         aliases:
           - apm-server.lo
     volumes:
-      - "${PWD}/apm-server.yml:/usr/share/apm-server/apm-server.yml:ro"
+      - "${PWD}/config/apm/apm-server.yml:/usr/share/apm-server/apm-server.yml:ro"
 
  
   logstash:
@@ -262,11 +259,14 @@ services:
       - 5044:5044
       - 5045:5045
     volumes:
-      - ${PWD}/logstash-pipeline/:/usr/share/logstash/pipeline/
+      - ${PWD}/config/logstash/pipeline/:/usr/share/logstash/pipeline/
 
   haproxy:
     container_name: haproxy
     image: haproxy:2.0
+    restart: always
+    labels:
+      - "traefik.frontend.rule=Host:haproxy.do"
     ports:
       - 9080:80
       - 9081:443
@@ -275,6 +275,28 @@ services:
         ipv4_address: 172.30.0.200
     volumes:
       - ${PWD}/config/haproxy/haproxy.cfg/:/usr/local/etc/haproxy/haproxy.cfg
+
+  nexus:
+    container_name: nexus
+    image: sonatype/nexus3:3.23.0
+    ports:
+      - 8081:8081
+
+  youtrack:
+    container_name: youtrack
+    image: jetbrains/youtrack:2020.2.7479
+    ports:
+      - 8777:8080
+
+  ecs:
+    container_name: ecs
+    image: econet-wireless-zimbabwe/epay-config-server:0.1.0
+    ports:
+      - 8888:8888
+    volumes:
+      - /home/jdube/workspace/ewz/cloud-configuration/epay:/data/apps/config/epay
+    environment:
+      spring.cloud.config.server.git.uri: /data/apps/config/epay
 
 networks:
   local:
