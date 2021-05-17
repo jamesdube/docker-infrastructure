@@ -1,4 +1,10 @@
 ## traefik.yml
+entryPoints:
+  http:
+    address: ":80"
+
+  https:
+    address: ":443"
 
 # Docker configuration backend
 providers:
@@ -10,7 +16,21 @@ api:
 metrics:
   prometheus: {}
 tracing:
-  zipkin: {}
+  zipkin: 
+    httpEndpoint: http://10.0.0.1:9411/api/v2/spans
 ping: {}
 log:
   level: DEBUG
+
+#tls
+tls:
+  certificates:
+    - certFile: /traefik.lo.pem
+      keyFile: /traefik.lo-key.pem
+      stores:
+        - default
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /traefik.lo.pem
+        keyFile: /traefik.lo-key.pem

@@ -1,0 +1,55 @@
+version: "3.5"
+
+services:
+  pkts.gitlab:
+    container_name: pkts.gitlab
+    image: 'gitlab/gitlab-ce:13.11.2-ce.0'
+    ports:
+      - '9000:80'
+      - '9001:443'
+      - '9003:22'
+    networks:
+      local:
+    labels:
+      - "traefik.http.routers.gitlab.rule=Host(`pkts.gitlab.lo`)"
+      - "traefik.http.services.gitlab.loadbalancer.server.port=80"
+      - "traefik.enable=true"
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://pkts.gitlab.lo'
+
+  wllv.gitlab:
+    container_name: pkts.gitlab
+    image: 'gitlab/gitlab-ce:13.9.1-ce.0'
+    ports:
+      - '9100:80'
+      - '9101:443'
+      - '9103:22'
+    networks:
+      local:
+    labels:
+      - "traefik.http.routers.gitlab.rule=Host(`wllv.gitlab.lo`)"
+      - "traefik.http.services.gitlab.loadbalancer.server.port=80"
+      - "traefik.enable=true"
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://wllv.gitlab.lo'
+
+  postgres:
+    container_name: postgres
+    image: 'gitlab/gitlab-ce:13.11.2-ce.0'
+    ports:
+      - '5432:5432'
+    networks:
+      local:
+    labels:
+      - "traefik.http.routers.gitlab.rule=Host(`pkts.gitlab.lo`)"
+      - "traefik.http.services.gitlab.loadbalancer.server.port=80"
+      - "traefik.enable=true"
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://pkts.gitlab.lo'
+
+networks:
+  local:
+    external: true

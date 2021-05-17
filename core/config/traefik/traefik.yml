@@ -1,0 +1,44 @@
+## traefik.yml
+entryPoints:
+  http:
+    address: ":80"
+  https:
+    address: ":443"
+
+
+# Docker configuration backend
+providers:
+  # kubernetesCRD:
+  #   endpoint: https://172.19.0.2:6443
+  #   token: "eyJhbGciOiJSUzI1NiIsImtpZCI6IlJZdC1HZS1MVDZuWXJMZjg3VHRRcFRzZUhWb2ZweGRWLUFPLThBTnhfLWsifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlLXN5c3RlbSIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJ0cmFlZmlrLWluZ3Jlc3MtY29udHJvbGxlci10b2tlbi1uc2N6biIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJ0cmFlZmlrLWluZ3Jlc3MtY29udHJvbGxlciIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6ImUxNmE3NWY0LTQ5MjAtNDRhMy05YzdlLTAyMTc4ZWM3NDUwYyIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlLXN5c3RlbTp0cmFlZmlrLWluZ3Jlc3MtY29udHJvbGxlciJ9.WjDux7B0ssTRaHgBVwloNA5NQUD-8emdBy5dKQX9dGHRK8s8T2qr_EwKE_9Molr_sikJaX-ejCwBk66aR0n_c7AY1SF256_t8kovR-T8bTrtcMiKkztVeCNOiEAH4B6qoG9WhQ-Q8ZRXQRMitJ8hoLeaKXBEPyeGdAayYpF-XWeOJ8jNbAQm_eRvO3WI0U91iv2a3EGeOs3VvQfEKCPwNFU3PoCeQEhKXHCdwHQTUS8gd1abW2d79UeJ2ctMBfs52C-Ar_e5D2fJDpC9WYe-_5lEa46ia3k8CWyYbVx4rXLmDmSSe9ag-3hmAojS38k9WfknMV4FLn1sqDg9SGBfTA"
+  #   certauthfilepath: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+  docker:
+    defaultRule: Host(`{{ normalize .Name }}.lo`)
+  file:
+    filename: "/traefik-config.yml"
+    watch: true
+
+# API and dashboard configuration
+api:
+  insecure: true
+metrics:
+  prometheus: {}
+# tracing:
+#   zipkin: 
+#     httpEndpoint: http://10.0.0.1:9411/api/v2/spans
+ping: {}
+log:
+  level: debug
+
+#tls
+tls:
+  certificates:
+    - certFile: /traefik.lo.pem
+      keyFile: /traefik.lo-key.pem
+      stores:
+        - default
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /traefik.lo.pem
+        keyFile: /traefik.lo-key.pem

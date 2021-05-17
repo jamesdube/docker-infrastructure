@@ -1,0 +1,151 @@
+---
+version: "3.5"
+
+networks:
+  local:
+    name: local
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "172.30.0.0/16"
+
+volumes:
+  consul:
+    driver: local
+    
+services:
+  traefik:
+    container_name: traefik
+    command: --loglevel=TRACE
+    image: traefik:2.3
+    restart: always
+    ports:
+      - 4001:80
+      - 4000:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/traefik/traefik.yml:/traefik.yml
+      - ./config/traefik/traefik-config.yml:/traefik-config.yml
+      - ./config/traefik/traefik.lo.pem:/traefik.lo.pem
+      - ./config/traefik/traefik.lo-key.pem:/traefik.lo-key.pem
+      - ./config/traefik/kube-ca.crt:/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    labels:
+      - "traefik.http.routers.treafik.rule=Host(`traefik.lo`)"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+      - "traefik.enable=true"
+    networks:
+      local:
+        ipv4_address: 172.30.1.1
+
+  haproxy:
+    container_name: haproxy
+    image: haproxy:2.3
+    restart: always
+    labels:
+      - "traefik.http.routers.haproxy.rule=Host(`haproxy.lo`)"
+      - "traefik.http.services.haproxy.loadbalancer.server.port=80"
+      - "traefik.enable=true"
+    ports:
+      - 9080:80
+      - 9081:443
+    networks:
+      local:
+        ipv4_address: 172.30.0.3
+    volumes:
+      - ./config/haproxy/haproxy.cfg/:/usr/local/etc/haproxy/haproxy.cfg
+
+  mysql:
+    container_name: mysql
+    image: 'mysql:8.0'
+    ports:
+      - '3306:3306'
+    networks:
+      local:
+    environment:
+      -  MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+
+  cloudbeaver:
+    container_name: cloudbeaver
+    image: dbeaver/cloudbeaver:latest
+    ports:
+      - 8978:8978
+    labels:
+      - "traefik.http.routers.prometheus.rule=Host(`cloudbeaver.lo`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=8978"
+
+  prometheus:
+    container_name: prometheus
+    image: 'prom/prometheus:v2.11.2'
+    ports:
+      - '9090:9090'
+    networks:
+      local:
+    volumes:
+      - '${PWD}/config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml'
+    labels:
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.lo`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3.8.9-management
+    labels:
+      - "traefik.http.routers.rabbitmq.rule=Host(`rabbitmq.lo`)"
+      - "traefik.http.services.rabbitmq.loadbalancer.server.port=15672"
+    ports:
+      - 5672:5672
+      - 15672:15672
+    networks:
+      local:
+
+  kafdrop:
+    image: obsidiandynamics/kafdrop
+    restart: "no"
+    ports:
+      - "9000:9000"
+    environment:
+      KAFKA_BROKERCONNECT: "kafka1:19091"
+
+  kafka:
+    container_name: kafka
+    image: bitnami/kafka:2.6.0
+    labels:
+      - "traefik.http.routers.kafka.rule=Host(`kafka.lo`)"
+      - "traefik.http.services.kafka.loadbalancer.server.port=9092"
+    ports:
+      - 9092:9092
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: "yes"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    networks:
+      local:
+
+  consul:
+    container_name: consul
+    image: consul
+    command: agent -datacenter='willowvale' -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0
+    labels:
+      - "traefik.http.routers.consul.rule=Host(`consul.lo`)"
+      - "traefik.http.services.consul.loadbalancer.server.port=8500"
+    ports:
+      - 8500:8500
+      - 8600:8600
+    networks:
+      local:
+
+  nfs:
+    container_name: nfs
+    image: itsthenetwork/nfs-server-alpine:12
+    restart: unless-stopped
+    privileged: true
+    environment:
+      - SHARED_DIRECTORY=/data
+    volumes:
+      - /data/docker-volumes:/data
+    labels:
+      - "traefik.tcp.services.nfs.loadbalancer.server.port=2049"
+      - "traefik.http.routers.nfs.tls=false"
+    ports:
+      - 2049:2049
+    networks:
+      local:

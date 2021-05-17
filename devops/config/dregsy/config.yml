@@ -1,0 +1,29 @@
+# relay type, either 'skopeo' or 'docker'
+relay: skopeo
+
+# relay config sections
+skopeo:
+  # path to the skopeo binary; defaults to 'skopeo', in which case it needs to
+  # be in PATH
+  binary: skopeo
+  # directory under which to look for client certs & keys, as well as CA certs
+  # (see note below)
+  certs-dir: /etc/skopeo/certs.d
+
+docker:
+  # Docker host to use as the relay
+  dockerhost: unix:///var/run/docker.sock
+  # Docker API version to use, defaults to 1.24
+  api-version: 1.24
+
+# list of sync tasks
+tasks:
+  - name: ewz-local # required
+    interval: 60
+    verbose: true
+    source:
+      registry: ewz.co
+      skip-tls-verify: true 
+    target:
+      registry: 192.168.81.43:5000
+      skip-tls-verify: true

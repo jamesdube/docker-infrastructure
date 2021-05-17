@@ -1,0 +1,143 @@
+version: '2.2'
+services:
+  es01:
+    image: elasticsearch:7.12.0
+    container_name: es01
+    environment:
+      - node.name=es01
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es02,es03
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data01:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - elastic
+
+  es02:
+    image: elasticsearch:7.12.0
+    container_name: es02
+    environment:
+      - node.name=es02
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01,es03
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data02:/usr/share/elasticsearch/data
+    ports:
+      - 9201:9201
+    networks:
+      - elastic
+
+  es03:
+    image: elasticsearch:7.12.0
+    container_name: es03
+    environment:
+      - node.name=es03
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01,es02
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data03:/usr/share/elasticsearch/data
+    ports:
+      - 9202:9202
+    networks:
+      - elastic
+
+  kib01:
+    image: kibana:7.12.0
+    container_name: kib01
+    ports:
+      - 5601:5601
+    environment:
+      ELASTICSEARCH_URL: http://es01:9200
+      ELASTICSEARCH_HOSTS: http://es01:9200
+    labels:
+      - "traefik.http.routers.kibana.rule=Host(`kibana.lo`)"
+      - "traefik.http.services.kibana.loadbalancer.server.port=5601"
+      - "traefik.docker.network=local"
+    networks:
+      - elastic
+        # - local
+
+  filebeat:
+    container_name: filebeat
+    image: store/elastic/filebeat:7.12.0
+    command: -e -d "*"
+    networks:
+      - elastic
+    volumes:
+      - ./config/filebeat/filebeat-epay.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /data/apps/logs/:/data/apps/logs/
+
+  logstash:
+    container_name: logstash
+    image: logstash:7.12.0
+    networks:
+      - elastic
+    ports:
+      - 5044:5044
+      - 5045:5045
+    volumes:
+      - ./config/logstash/logstash.conf:/usr/share/logstash/config/logstash.conf:ro
+      - ./config/logstash/pipeline/:/usr/share/logstash/pipeline/
+
+  metricbeat:
+    container_name: metricbeat
+    image: elastic/metricbeat:7.12.2
+    environment:
+      setup.kibana.host: kib01:5601
+      output.elasticsearch.hosts: "['es01:9200']"
+    user: root
+    networks:
+      - elastic
+    volumes:
+      - ./config/metricbeat/metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      - /proc:/hostfs/proc:ro
+      - /:/hostfs:ro
+
+  apm:
+    image: elastic/apm-server:7.12.0
+    container_name: apm
+    volumes:
+      - ./config/apm/apm-server.yml:/usr/share/apm-server/apm-server.yml:ro
+    ports:
+      - "8200:8200"
+    networks:
+      - elastic
+
+volumes:
+  data01:
+    driver: local
+  data02:
+    driver: local
+  data03:
+    driver: local
+
+networks:
+  elastic:
+    name: elastic
+    driver: bridge
+    # local:
+    #external: true

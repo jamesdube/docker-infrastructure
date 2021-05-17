@@ -1,0 +1,328 @@
+version: "3.5"
+
+services:
+  gitlab:
+    container_name: gitlab
+    image: 'gitlab/gitlab-ce:13.9.1-ce.0'
+    ports:
+      - '3080:80'
+      - '3443:443'
+      - '3022:22'
+    networks:
+      local:
+    labels:
+      - "traefik.http.routers.gitlab.rule=Host(`gitlab.lo`)"
+      - "traefik.http.services.gitlab.loadbalancer.server.port=80"
+      - "traefik.tcp.routers.gitlab-ssh.rule=HostSNI(`gitlab.lo`)"
+      - "traefik.tcp.routers.gitlab-ssh.entrypoints=ssh"
+      - "traefik.tcp.routers.gitlab-ssh.service=gitlab-ssh-svc"
+      - "traefik.tcp.services.gitlab-ssh-svc.loadbalancer.server.port=22"
+      - "traefik.enable=true"
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://gitlab.lo'
+    volumes:
+      - '${GITLAB_DATA}/configs:/etc/gitlab'
+      - '${GITLAB_DATA}/logs:/var/log/gitlab'
+      - '${GITLAB_DATA}/data:/var/opt/gitlab'
+      
+  ewz.gitlab:
+    container_name: ewz.gitlab
+    image: 'gitlab/gitlab-ee:10.3.3-ee.0'
+    ports:
+      - '3080:80'
+      - '3443:443'
+      - '3022:22'
+    networks:
+      local:
+    labels:
+      - "traefik.http.routers.gitlab.rule=Host(`ewz.gitlab.lo`)"
+      - "traefik.http.services.gitlab.loadbalancer.server.port=80"
+      - "traefik.tcp.routers.gitlab-ssh.rule=HostSNI(`ewz.gitlab.lo`)"
+      - "traefik.tcp.routers.gitlab-ssh.entrypoints=ssh"
+      - "traefik.tcp.routers.gitlab-ssh.service=gitlab-ssh-svc"
+      - "traefik.tcp.services.gitlab-ssh-svc.loadbalancer.server.port=22"
+      - "traefik.enable=true"
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://gitlab.lo'
+    volumes:
+      - '${GITLAB_EWZ_DATA}/configs:/etc/gitlab'
+      - '${GITLAB_EWZ_DATA}/logs:/var/log/gitlab'
+      - '${GITLAB_EWZ_DATA}/data:/var/opt/gitlab'
+      
+  ewz-gitlab-runner-1:
+    container_name: ewz-gitlab-runner-1
+    image: gitlab/gitlab-runner:latest
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config/gitlab-runner/ewz-1/config.toml:/etc/gitlab-runner/config.toml
+    networks:
+      local:
+
+  gitlab-runner-1:
+    container_name: gitlab-runner-1
+    image: gitlab/gitlab-runner:latest
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config/gitlab-runner/runner-1/config.toml:/etc/gitlab-runner/config.toml
+    networks:
+      local:
+    
+  bitbucket:
+    container_name: bitbucket
+    image: 'atlassian/bitbucket-server'
+    ports:
+      - '7990:7990'
+    networks:
+      local:
+    labels:
+      - "traefik.http.routers.bitbucket.rule=Host(`bitbucket.lo`)"
+      - "traefik.http.services.bitbucket.loadbalancer.server.port=7990"
+      - "traefik.enable=true"
+    volumes:
+      - '${BITBUCKET_DATA}/application-data:/var/atlassian/application-data/bitbucket'
+    environment:
+      ELASTICSEARCH_ENABLED: "false"
+
+  bitbucket-drone:
+    container_name: bitbucket-drone
+    image: 'drone/drone:1'
+    ports:
+      - 3300:80
+      - 3301:443
+    networks:
+      local:
+    labels: 
+      - "traefik.http.routers.bitbucket-drone.rule=Host(`bitbucket.drone.lo`)"
+      - "traefik.http.services.bitbucket-drone.loadbalancer.server.port=80"
+      - "traefik.enable=true"
+    volumes:
+      - '${DRONE_DATA}:/data'
+      - ./certs/bitbucket-key.pem:/etc/bitbucket/key.pem 
+    environment:
+      DRONE_GIT_PASSWORD: ${DRONE_GIT_PASSWORD}
+      DRONE_GIT_USERNAME: ${DRONE_GIT_USERNAME}
+      DRONE_GIT_ALWAYS_AUTH: "false"
+      DRONE_STASH_SERVER: ${DRONE_STASH_SERVER}
+      DRONE_STASH_CONSUMER_KEY: OauthKey 
+      DRONE_STASH_PRIVATE_KEY: /etc/bitbucket/key.pem 
+      DRONE_SERVER_HOST: ${DRONE_SERVER_HOST}
+      DRONE_SERVER_PROTO: ${DRONE_SERVER_PROTO}
+      DRONE_RPC_SECRET: ${DRONE_RPC_SECRET}
+      DRONE_USER_CREATE: username:${DRONE_GIT_USERNAME},admin:true
+
+  gitlab-drone:
+    container_name: gitlab-drone
+    image: 'drone/drone:1'
+    ports:
+      - 3403:80
+      - 3404:443
+    networks:
+      local:
+    labels: 
+      - "traefik.http.routers.gitlab-drone.rule=Host(`gitlab.drone.lo`)"
+      - "traefik.http.services.gitlab-drone.loadbalancer.server.port=80"
+      - "traefik.enable=true"
+    # volumes:
+      # - '${DRONE_DATA}:/data'
+      # - ./certs/bitbucket-key.pem:/etc/bitbucket/key.pem 
+    environment:
+      DRONE_LOGS_DEBUG: "true"
+      DRONE_USER_CREATE: username:${DRONE_GIT_USERNAME},admin:true
+      DRONE_GITLAB_SERVER: ${GITLAB_SERVER}
+      DRONE_GITLAB_CLIENT_ID: ${DRONE_GITLAB_CLIENT_ID}
+      DRONE_GITLAB_CLIENT_SECRET: ${DRONE_GITLAB_CLIENT_SECRET}
+      DRONE_SERVER_HOST: ${DRONE_SERVER_HOST}
+      DRONE_RPC_SECRET: ${DRONE_RPC_SECRET}
+
+  drone:
+    container_name: drone
+    image: 'drone/drone:1'
+    ports:
+      - 3400:80
+      - 3401:443
+    networks:
+      local:
+    labels: 
+      - "traefik.http.routers.drone.rule=Host(`drone.lo`)"
+      - "traefik.http.services.drone.loadbalancer.server.port=80"
+      - "traefik.enable=true"
+    volumes:
+      # - '${DRONE_DATA}:/data'
+      - ./certs/bitbucket-key.pem:/etc/bitbucket/key.pem 
+    environment:
+      DRONE_GIT_PASSWORD: ${DRONE_GIT_PASSWORD}
+      DRONE_GIT_USERNAME: ${DRONE_GIT_USERNAME}
+      DRONE_GIT_ALWAYS_AUTH: "false"
+      DRONE_LOGS_DEBUG: "true"
+      DRONE_STASH_SERVER: ${DRONE_STASH_SERVER}
+      DRONE_STASH_CONSUMER_KEY: OauthKey 
+      DRONE_STASH_PRIVATE_KEY: /etc/bitbucket/key.pem 
+      DRONE_SERVER_PROTO: ${DRONE_SERVER_PROTO}
+      DRONE_USER_CREATE: username:${DRONE_GIT_USERNAME},admin:true
+      DRONE_GITLAB_SERVER: ${GITLAB_SERVER}
+      DRONE_GITLAB_CLIENT_ID: ${DRONE_GITLAB_CLIENT_ID}
+      DRONE_GITLAB_CLIENT_SECRET: ${DRONE_GITLAB_CLIENT_SECRET}
+      DRONE_GITEA_SERVER: ${DRONE_GITEA_SERVER}
+      DRONE_GITEA_CLIENT_ID: ${DRONE_GITEA_CLIENT_ID}
+      DRONE_GITEA_CLIENT_SECRET: ${DRONE_GITEA_CLIENT_SECRET}
+      DRONE_SERVER_HOST: ${DRONE_SERVER_HOST}
+      DRONE_RPC_SECRET: ${DRONE_RPC_SECRET}
+
+  drone-runner:
+    container_name: drone-runner
+    image: 'drone/drone-runner-docker:1'
+    ports:
+      - 3010:3000
+    networks:
+      local:
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  
+    environment:
+      DRONE_RPC_PROTO: http 
+      DRONE_RPC_HOST: drone.lo 
+      DRONE_RPC_SECRET: 1B681SpbIk 
+      DRONE_RUNNER_CAPACITY: 5 
+      DRONE_LOGS_DEBUG: "true"
+      # DRONE_RUNNER_NAME: ${HOSTNAME} 
+
+  gitea:
+    container_name: gitea
+    image: gitea/gitea:1.8.3
+    labels:
+      - "traefik.http.routers.gitea.rule=Host(`gitea.lo`)"
+      - "traefik.http.services.gitea.loadbalancer.server.port=3000"
+      - "traefik.tcp.routers.gitea-ssh.rule=HostSNI(`gitea.lo`)"
+      - "traefik.tcp.routers.gitea-ssh.entrypoints=ssh"
+      - "traefik.tcp.routers.gitea-ssh.service=gitea-ssh-svc"
+      - "traefik.tcp.services.gitea-ssh-svc.loadbalancer.server.port=22"
+    ports:
+      - 3100:3000
+      - '3122:22'
+    networks:
+      local:
+
+  quay:
+    container_name: quay
+    image: quiq/docker-registry-ui:0.9.2
+    labels:
+      - "traefik.http.routers.quay.rule=Host(`quay.lo`)"
+      - "traefik.http.services.quay.loadbalancer.server.port=8000"
+    ports:
+      - 5001:8000
+    volumes:
+      - './config/quay/config.yml:/opt/config.yml:ro'
+    networks:
+      local:
+
+  minio:
+    container_name: minio
+    image: minio/minio:latest
+    command: server /data
+    labels:
+      - "traefik.http.routers.minio.rule=Host(`minio.lo`)"
+      - "traefik.http.services.minio.loadbalancer.server.port=9000"
+      # - "traefik.tcp.routers.minio.tls=true"
+      # - "traefik.tcp.routers.minio.tls.passthrough=true"
+    ports:
+      - 9005:9000
+    volumes:
+      - '${MINIO_DATA}:/root/.minio'
+      - '${MINIO_DATA_EXPORT}:/export'
+    networks:
+      local:
+
+  nexus:
+    container_name: nexus
+    image: sonatype/nexus3:3.29.0
+    labels:
+      - "traefik.http.routers.nexus.rule=Host(`nexus.lo`)"
+      - "traefik.http.services.nexus.loadbalancer.server.port=8081"
+      - "traefik.enable=true"
+    ports:
+      - 9081:8081
+      - 9082:8082
+      - 9083:8083
+      - 9084:8084
+    volumes:
+      - '${MINIO_DATA}:/root/.minio'
+      - '${MINIO_DATA_EXPORT}:/export'
+    networks:
+      local:
+
+  ewz.co:
+    container_name: ewz.co
+    image: 'registry:2'
+    ports:
+      - 5001:443
+    environment:
+      REGISTRY_HTTP_ADDR: 0.0.0.0:443
+      REGISTRY_HTTP_TLS_CERTIFICATE: ./certs/ewz.co.pem
+      REGISTRY_HTTP_TLS_KEY: ./certs/ewz.co-key.pem
+    labels:
+      - "traefik.tcp.services.ewzco.loadbalancer.server.port=443"
+      - "traefik.tcp.routers.ewzco.rule=HostSNI(`ewz.co`)"
+      - "traefik.tcp.routers.ewzco.tls=true"
+      - "traefik.tcp.routers.ewzco.tls.passthrough=true"
+      - "traefik.enable=true"
+    volumes:
+      - ./certs:/certs
+    networks:
+      local:
+
+  registry:
+    container_name: registry
+    image: 'registry:2'
+    ports:
+      - '5000:443'
+    environment:
+      REGISTRY_HTTP_ADDR: 0.0.0.0:443
+      REGISTRY_HTTP_TLS_CERTIFICATE: ./certs/registry.lo.pem
+      REGISTRY_HTTP_TLS_KEY: ./certs/registry.lo-key.pem
+    labels:
+      - "traefik.tcp.services.mytcprouter.loadbalancer.server.port=443"
+      # - "traefik.tcp.services.registry.loadbalancer.server.port=443"
+      # - "traefik.http.routers.registry.tls=true"
+      # - "traefik.tcp.routers.registry.rule=HostSNI(`registry.lo`)"
+      - "traefik.tcp.routers.mytcprouter.rule=HostSNI(`registry.lo`)"
+      - "traefik.tcp.routers.mytcprouter.tls=true"
+      - "traefik.tcp.routers.mytcprouter.tls.passthrough=true"
+    volumes:
+      - ./certs:/certs
+      - ${REGISTRY_DATA}:/var/lib/registry
+    networks:
+      local:
+
+  rancher:
+    container_name: rancher
+    image: rancher/rancher
+    privileged: true
+    ports:
+      - 7443:443
+      - 7080:80
+    labels:
+      - "traefik.tcp.services.rancher.loadbalancer.server.port=80"
+      - "traefik.tcp.routers.rancher.rule=HostSNI(`rancher.lo`)"
+      - "traefik.tcp.routers.rancher.tls=true"
+      - "traefik.tcp.routers.rancher.tls.passthrough=true"
+    volumes:
+      - ./certs:/certs
+      - ${REGISTRY_DATA}:/var/lib/registry
+    networks:
+      local:
+
+  dregsy:
+    container_name: dregsy
+    image: 'xelalex/dregsy'
+    volumes:
+      - ${HOME}/.pki:/etc/skopeo/certs.d
+      - ./config/dregsy/config.yml:/config.yaml
+    networks:
+      local:
+
+networks:
+  local:
+    external: true

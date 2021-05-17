@@ -1,0 +1,20 @@
+filebeat.config:
+  modules:
+    path: ${path.config}/modules.d/*.yml
+    reload.enabled: false
+
+processors:
+- add_cloud_metadata: ~
+
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /data/apps/logs/epay/service/epay-payments-service/elk/epay-payments-services-elk.log
+  json:
+  json.keys_under_root: true
+
+output:
+  logstash:
+    enabled: true
+    hosts: [ '10.0.0.1:5044' ]

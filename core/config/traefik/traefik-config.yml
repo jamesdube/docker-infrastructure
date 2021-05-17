@@ -1,0 +1,39 @@
+http:
+  routers:
+    # ewz-router:
+    #   rule: "Host(`ewz.co`)"
+    #   service: "ewz-service"
+    # ecr-router:
+    #   rule: "Host(`ecr.co`)"
+    #   service: "ecr-service"
+    test-router:
+      rule: "Host(`test.co`)"
+      service: "test-service"
+    nexus-econet-service:
+      rule: "Host(`nexus.econet.co.zw`)"
+      service: "nexus-econet-service"
+    gitlab-docs:
+      rule: "Host(`docs.gitlab.lo`)"
+      service: "gitlab-service"
+
+  services:
+    # ewz-service:
+    #   loadBalancer:
+    #     servers:
+    #     - url: "http://192.168.81.43:5000"
+    # ecr-service:
+    #   loadBalancer:
+    #     servers:
+    #     - url: "http://192.168.132.218:5000"
+    test-service:
+      loadBalancer:
+        servers:
+        - url: "http://10.0.0.1:8080"
+    nexus-econet-service:
+       loadBalancer:
+         servers: 
+         - url: "http://192.168.132.218:9081"
+    gitlab-service:
+       loadBalancer:
+         servers: 
+         - url: "http://172.30.0.2:80"
